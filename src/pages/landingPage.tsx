@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FaChartLine, FaChartPie, FaMoneyBillWave } from 'react-icons/fa';
-import Card from "../components/card";
-import AuthModal from '../components/AuthModal';
+import LandingPageCard from "../components/landingPageCards";
+import AuthModal from '../components/authModal';
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -20,19 +20,19 @@ export default function LandingPage() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 w-full px-4">
-            <Card 
+            <LandingPageCard 
               icon={<FaChartLine />}
               title="Track Income"
               description="Monitor all your income sources and financial growth"
               borderColor="border-green-200"
             />
-            <Card 
+            <LandingPageCard 
               icon={<FaChartPie />}
               title="Track Expenses"
               description="Categorize and analyze your spending patterns"
               borderColor="border-blue-200"
             />
-            <Card 
+            <LandingPageCard 
               icon={<FaMoneyBillWave />}
               title="Monthly Reports"
               description="Get detailed insights and monthly summaries"

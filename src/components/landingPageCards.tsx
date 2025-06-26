@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 
-interface CardProps {
+interface LandingPageCardProps {
   icon: ReactNode;
   title: string;
   description: string;
   borderColor?: string;
 }
 
-export default function Card({ 
+export default function LandingPageCard({ 
   icon, 
   title, 
   description, 
   borderColor = 'border-gray-200' 
-}: CardProps) {
+}: LandingPageCardProps) {
   return (
     <div className={`bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-all border ${borderColor} flex flex-col items-center text-center h-full`}>
       <div className="text-4xl mb-4 text-blue-500">
