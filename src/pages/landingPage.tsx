@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FaChartLine, FaChartPie, FaMoneyBillWave } from 'react-icons/fa';
 import LandingPageCard from "../components/landingPageCards";
-import AuthModal from '../components/authModal';
+import AuthModal from '../components/AuthModal';
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
