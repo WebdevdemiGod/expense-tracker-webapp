@@ -1,20 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { useBudget, type Budget, type BudgetInput } from '../hooks/useBudget';
 
+const ConfirmationDialog: React.FC<{
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  isDangerous?: boolean;
+}> = ({ isOpen, title, message, onConfirm, onCancel, confirmText = 'Delete', cancelText = 'Cancel', isDangerous = true }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              isDangerous 
+                ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' 
+                : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+            }`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface BudgetModalProps {
   isOpen: boolean;
   onClose: () => void;
-  budget?: Budget | null;
+  currentBudget?: Budget | null;
   onSuccess?: () => void;
 }
 
 export const BudgetModal: React.FC<BudgetModalProps> = ({
   isOpen,
   onClose,
-  budget = null,
+  currentBudget,
   onSuccess,
 }) => {
-  const { addBudget, updateBudget, loading, error } = useBudget();
+  const { addBudget, deleteBudget, loading, error } = useBudget();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Form state
   const [amount, setAmount] = useState('');
@@ -22,23 +64,27 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
-  // Initialize form when budget changes
+  // Initialize form when modal opens or currentBudget changes
   useEffect(() => {
-    if (budget) {
-      // Editing existing budget
-      setAmount(budget.amount.toString());
-      setPeriodType(budget.period_type);
-      setStartDate(budget.start_date);
-      setEndDate(budget.end_date);
-    } else {
-      // Creating new budget - set defaults
-      resetForm();
-      setDefaultDates();
+    if (isOpen) {
+      if (currentBudget) {
+        // Editing existing budget
+        setAmount(currentBudget.amount.toString());
+        setPeriodType(currentBudget.period_type);
+        setStartDate(currentBudget.start_date);
+        setEndDate(currentBudget.end_date);
+        setIsEditing(true);
+      } else {
+        // Creating new budget - set defaults
+        resetForm();
+        setDefaultDates();
+        setIsEditing(false);
+      }
     }
-  }, [budget, isOpen]);
+  }, [isOpen, currentBudget]);
 
-  // Reset form to defaults
   const resetForm = () => {
     setAmount('');
     setPeriodType('monthly');
@@ -47,10 +93,9 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
     setFormError(null);
   };
 
-  // Set default dates based on period type
   const setDefaultDates = () => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1); // First day of current month
+    const start = new Date(now.getFullYear(), now.getMonth(), 1); // 
     let end: Date;
 
     switch (periodType) {
@@ -58,11 +103,11 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
         end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
         break;
       case 'yearly':
-        end = new Date(start.getFullYear() + 1, start.getMonth(), 0); // Last day of same month next year
+        end = new Date(start.getFullYear() + 1, start.getMonth(), 0); 
         break;
       case 'monthly':
       default:
-        end = new Date(start.getFullYear(), start.getMonth() + 1, 0); // Last day of current month
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0); 
         break;
     }
 
@@ -70,9 +115,8 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
     setEndDate(end.toISOString().split('T')[0]);
   };
 
-  // Update end date when period type changes
   useEffect(() => {
-    if (startDate && !budget) {
+    if (startDate && !currentBudget) {
       const start = new Date(startDate);
       let end: Date;
 
@@ -91,9 +135,8 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
       setEndDate(end.toISOString().split('T')[0]);
     }
-  }, [periodType, startDate, budget]);
+  }, [periodType, startDate, currentBudget]);
 
-  // Validate form
   const validateForm = (): boolean => {
     setFormError(null);
 
@@ -115,7 +158,6 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
     return true;
   };
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -125,7 +167,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
     try {
       const budgetData: BudgetInput = {
-        user_id: '', // Will be overridden in the hook with authenticated user
+        user_id: '', 
         amount: parseFloat(amount),
         period_type: periodType,
         start_date: startDate,
@@ -133,18 +175,11 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
       };
 
       console.log('Submitting budget data:', budgetData);
-
-      if (budget) {
-        // Update existing budget
-        await updateBudget(budget.id, budgetData);
-        console.log('Budget updated successfully');
-      } else {
-        // Create new budget
-        await addBudget(budgetData);
-        console.log('Budget created successfully');
-      }
-
-      // Success - close modal and notify parent
+      
+      // The addBudget function now handles both create and update
+      await addBudget(budgetData);
+      
+      console.log(isEditing ? 'Budget updated successfully' : 'Budget created successfully');
       onClose();
       onSuccess?.();
       
@@ -154,31 +189,60 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
     }
   };
 
-  // Handle modal close
   const handleClose = () => {
     resetForm();
     onClose();
   };
 
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!currentBudget?.id) return;
+    
+    try {
+      setIsDeleting(true);
+      setShowDeleteConfirm(false);
+      console.log('Deleting budget with ID:', currentBudget.id);
+      await deleteBudget(Number(currentBudget.id));
+      console.log('Budget deleted successfully');
+      onClose();
+      onSuccess?.();
+    } catch (err) {
+      console.error('Error deleting budget:', err);
+      setFormError('Failed to delete budget');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  if (!isOpen) return null;
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">
-            {budget ? 'Edit Budget' : 'Add Budget'}
-          </h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-500 hover:text-gray-700"
-            type="button"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">
+              {isEditing ? 'Edit Budget' : 'Set Budget'}
+            </h2>
+            <button
+              onClick={handleClose}
+              className="text-gray-500 hover:text-gray-700"
+              type="button"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Amount */}
@@ -257,24 +321,46 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 
           {/* Buttons */}
           <div className="flex space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading}
-            >
-              Cancel
-            </button>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                disabled={loading || isDeleting}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Budget'
+                )}
+              </button>
+            )}
+            <ConfirmationDialog
+              isOpen={showDeleteConfirm}
+              title="Delete Budget"
+              message="Are you sure you want to delete this budget? This action cannot be undone."
+              confirmText="Delete Budget"
+              onConfirm={handleDeleteConfirm}
+              onCancel={handleDeleteCancel}
+              isDangerous={true}
+            />
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              disabled={loading}
+              disabled={loading || isDeleting}
+              className={`${isEditing ? 'flex-1' : 'w-full'} bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {loading ? 'Saving...' : (budget ? 'Update' : 'Add')} Budget
+              {loading ? 'Saving...' : isEditing ? 'Update' : 'Set Budget'}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 };

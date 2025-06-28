@@ -1,5 +1,4 @@
 import { TotalBalance } from '../components/totalBalance';
-import TotalExpense from '../components/totalExpense';
 import ExpenseBreakdown from '../components/expenseBreakdown';
 import MonthlyOverview from '../components/monthlyOverview';
 import RecentTransactions from '../components/recentTransaction';

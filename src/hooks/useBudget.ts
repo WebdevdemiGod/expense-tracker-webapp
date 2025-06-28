@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '../lib/supabase';
 
 export interface Budget {
-  id: string;
+  id: number;
   user_id: string;
   amount: number;
   period_type: 'monthly' | 'weekly' | 'yearly';
@@ -61,8 +61,8 @@ export const useBudget = () => {
     }
   }, []);
 
-  // Add budget with proper error handling
-  const addBudget = async (budgetData: BudgetInput) => {
+  // Add or update budget with proper error handling
+  const addBudget = async (budgetData: BudgetInput, id?: number) => {
     try {
       setLoading(true);
       setError(null);
@@ -74,34 +74,48 @@ export const useBudget = () => {
         throw new Error('User not authenticated');
       }
 
-      console.log('Adding budget:', budgetData);
+      console.log('Adding/Updating budget:', { ...budgetData, id });
 
       // Ensure user_id matches authenticated user
-      const budgetToInsert = {
+      const budgetToUpsert = {
         ...budgetData,
         user_id: user.id, // Override with authenticated user ID
       };
 
-      const { data, error } = await supabase
-        .from('budgets')
-        .insert(budgetToInsert)
-        .select()
-        .single();
+      let response;
 
-      if (error) {
-        console.error('Supabase insert error:', error);
-        throw error;
+      if (id) {
+        // Update existing budget with the provided ID
+        const { data, error } = await supabase
+          .from('budgets')
+          .update(budgetToUpsert)
+          .eq('id', id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        response = data;
+        console.log('Budget updated successfully:', response);
+      } else {
+        // Create new budget
+        const { data, error } = await supabase
+          .from('budgets')
+          .insert(budgetToUpsert)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        response = data;
+        console.log('Budget added successfully:', response);
       }
-
-      console.log('Budget added successfully:', data);
       
-      // Update local state
-      setBudgets(prev => [data, ...prev]);
+      // Refresh budgets to update local state
+      await fetchBudgets();
       
-      return data;
+      return response;
     } catch (err) {
-      console.error('Error adding budget:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add budget');
+      console.error('Error in add/update budget:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save budget');
       throw err;
     } finally {
       setLoading(false);
@@ -109,7 +123,7 @@ export const useBudget = () => {
   };
 
   // Update budget
-  const updateBudget = async (id: string, budgetData: Partial<BudgetInput>) => {
+  const updateBudget = async (id: number, budgetData: Partial<BudgetInput>) => {
     try {
       setLoading(true);
       setError(null);
@@ -146,48 +160,52 @@ export const useBudget = () => {
     }
   };
 
-  // Delete budget
-  const deleteBudget = async (id: string) => {
+  // Delete budget function - sets amount to 0 instead of deleting
+  const deleteBudget = async (id: number) => {
     try {
       setLoading(true);
       setError(null);
 
       const supabase = createClient();
-      console.log('Deleting budget:', id);
+      console.log('Setting budget amount to 0 for ID:', id);
 
-      const { error } = await supabase
+      // Update the budget to set amount to 0 instead of deleting
+      const { data, error } = await supabase
         .from('budgets')
-        .delete()
-        .eq('id', id);
+        .update({ 
+          amount: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) {
-        console.error('Supabase delete error:', error);
+        console.error('Error updating budget amount:', error);
         throw error;
       }
 
-      console.log('Budget deleted successfully');
+      console.log('Budget amount set to 0 successfully:', data);
       
-      // Update local state
-      setBudgets(prev => prev.filter(budget => budget.id !== id));
+      // Update local state with the modified budget
+      setBudgets(prev => prev.map(budget => 
+        budget.id === id ? { ...budget, amount: 0, updated_at: new Date().toISOString() } : budget
+      ));
+      
+      return data;
       
     } catch (err) {
-      console.error('Error deleting budget:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete budget');
+      console.error('Error in deleteBudget:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update budget');
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Get current active budget
+  // Get current active budget (returns the first budget since we only allow one)
   const getCurrentBudget = useCallback(() => {
-    const now = new Date();
-    const currentDate = now.toISOString().split('T')[0];
-    
-    return budgets.find(budget => 
-      budget.start_date <= currentDate && 
-      budget.end_date >= currentDate
-    );
+    return budgets.length > 0 ? budgets[0] : null;
   }, [budgets]);
 
   // Calculate budget utilization (requires expenses)
